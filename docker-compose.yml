@@ -7,6 +7,10 @@ services:
       MINIO_ROOT_USER: weka-admin-superkey
       MINIO_ROOT_PASSWORD: weka-admin-supersecret
       MINIO_REGION_NAME: us-east-1
+      # Large-model uploads commonly fail midway. These settings keep abandoned
+      # multipart parts from consuming backend disk indefinitely.
+      MINIO_API_STALE_UPLOADS_EXPIRY: ${MINIO_API_STALE_UPLOADS_EXPIRY:-24h}
+      MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL: ${MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL:-1h}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -27,6 +31,10 @@ services:
       MINIO_ROOT_PASSWORD: weka-admin-supersecret
       MINIO_VGW_ADMIN_USER: versitygw-minio-admin
       MINIO_VGW_ADMIN_PASSWORD: versitygw-minio-admin-secret
+      # Keep the default small so ./test-flow.sh can verify quota behavior
+      # quickly. For real LLM model uploads, override with 500GiB, 1TiB, etc.
+      USER_BUCKET_QUOTA_SIZE: ${USER_BUCKET_QUOTA_SIZE:-10MiB}
+      USER_BUCKET_VERSIONING: ${USER_BUCKET_VERSIONING:-suspend}
     volumes:
       - ./scripts:/scripts:ro
     networks:
@@ -57,6 +65,14 @@ services:
       - /health
       - --iam-dir
       - /var/lib/versitygw/iam
+      # Explicit large-object/multipart-related gateway limits.
+      - --mp-max-parts
+      - "10000"
+      - --keep-alive
+      - --max-connections
+      - "1000"
+      - --max-requests
+      - "500"
       - --access
       - weka-admin-superkey
       - --secret

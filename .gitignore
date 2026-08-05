@@ -1,3 +1,4 @@
 .tmp/
 /init_mylab_ubuntu/
+.env
 .DS_Store
