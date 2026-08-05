@@ -6,6 +6,19 @@ This repository runs a local S3 development lab:
 - VersityGW acts as the S3 gateway/proxy and authenticates mock users.
 - Docker Compose orchestrates the stack.
 
+## Pinned image versions
+
+All Docker images are pinned for repeatable local behavior:
+
+| Service | Image |
+| --- | --- |
+| MinIO | `minio/minio:RELEASE.2025-04-22T22-12-26Z` |
+| MinIO Client | `minio/mc:RELEASE.2025-04-16T18-13-26Z` |
+| VersityGW | `versity/versitygw:v1.7.0` |
+| AWS CLI | `amazon/aws-cli:2.36.16` |
+
+The MinIO version is intentionally pinned before `RELEASE.2025-05-24T17-08-30Z` so the local Console keeps the older administrative UI behavior, including bucket/admin views that were removed or reduced in newer MinIO Console releases.
+
 ## Credentials and buckets
 
 MinIO root credential, used only for backend provisioning:
