@@ -1,0 +1,97 @@
+# Mock WEKA S3 Lab: MinIO + VersityGW
+
+This repository runs a local S3 development lab:
+
+- MinIO acts as the mock WEKA S3 backend.
+- VersityGW acts as the S3 gateway/proxy and authenticates mock users.
+- Docker Compose orchestrates the stack.
+
+## Credentials and buckets
+
+Backend MinIO and VersityGW root/admin credential:
+
+- Access key: `weka-admin-superkey`
+- Secret key: `eka-admin-supersecret`
+
+Gateway users:
+
+| User | Access key | Secret key | Allowed bucket |
+| --- | --- | --- | --- |
+| User_A | `user-a-key` | `user-a-secret` | `bucket-user-a` |
+| User_B | `user-b-key` | `user-b-secret` | `bucket-user-b` |
+
+Buckets:
+
+- `bucket-user-a`
+- `bucket-user-b`
+- `vgw-meta` for VersityGW S3-proxy metadata, including bucket policy metadata
+
+`bucket-user-a` and `bucket-user-b` are configured with a 10MiB MinIO bucket quota for easy failure testing.
+
+## Important VersityGW policy note
+
+VersityGW does not support AWS-style IAM user policies. The official behavior is that user policies are not used; access isolation is configured using bucket policies or bucket ACLs. This lab enforces isolation with VersityGW JSON bucket policies:
+
+- [policies/bucket-user-a-policy.json](policies/bucket-user-a-policy.json)
+- [policies/bucket-user-b-policy.json](policies/bucket-user-b-policy.json)
+
+The policies explicitly allow each user only on their assigned bucket and explicitly deny the opposite user.
+
+## Start the environment
+
+Prerequisite: Docker with the Compose v2 plugin (`docker compose`).
+
+```sh
+docker compose up -d
+```
+
+Useful endpoints:
+
+- VersityGW S3 endpoint: `http://localhost:7070`
+- VersityGW admin endpoint: `http://localhost:7071`
+- MinIO S3 endpoint: `http://localhost:9000`
+- MinIO console: `http://localhost:9001`
+
+## Run verification
+
+```sh
+./test-flow.sh
+```
+
+The script:
+
+1. Starts MinIO and VersityGW.
+2. Re-runs all provisioning steps idempotently.
+3. Confirms User_A can read/write only `bucket-user-a`.
+4. Confirms User_B can read/write only `bucket-user-b`.
+5. Confirms an 11MiB upload to a 10MiB bucket is rejected.
+
+## Manual S3 examples
+
+User_A upload through VersityGW:
+
+```sh
+printf 'hello\n' | docker compose run --rm -T \
+  -e AWS_ACCESS_KEY_ID=user-a-key \
+  -e AWS_SECRET_ACCESS_KEY=user-a-secret \
+  awscli --endpoint-url http://versitygw:7070 \
+  s3 cp - s3://bucket-user-a/manual/hello.txt
+```
+
+User_B list through VersityGW:
+
+```sh
+docker compose run --rm -T \
+  -e AWS_ACCESS_KEY_ID=user-b-key \
+  -e AWS_SECRET_ACCESS_KEY=user-b-secret \
+  awscli --endpoint-url http://versitygw:7070 \
+  s3api list-objects-v2 --bucket bucket-user-b
+```
+
+## Reset local data
+
+This removes the local containers and named volumes for a clean start:
+
+```sh
+docker compose down -v
+```

@@ -1,0 +1,129 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: mock-weka-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: weka-admin-superkey
+      MINIO_ROOT_PASSWORD: eka-admin-supersecret
+      MINIO_REGION_NAME: us-east-1
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - s3lab
+
+  minio-provisioner:
+    image: minio/mc:latest
+    container_name: mock-weka-minio-provisioner
+    depends_on:
+      - minio
+    entrypoint: ["/bin/sh", "/scripts/provision-minio.sh"]
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: weka-admin-superkey
+      MINIO_ROOT_PASSWORD: eka-admin-supersecret
+    volumes:
+      - ./scripts:/scripts:ro
+    networks:
+      - s3lab
+    restart: "no"
+
+  versitygw:
+    image: versity/versitygw:latest
+    container_name: mock-weka-versitygw
+    depends_on:
+      minio-provisioner:
+        condition: service_completed_successfully
+    command:
+      - --port
+      - :7070
+      - --admin-port
+      - :7071
+      - --health
+      - /health
+      - --iam-dir
+      - /var/lib/versitygw/iam
+      - --access
+      - weka-admin-superkey
+      - --secret
+      - eka-admin-supersecret
+      - s3
+      - --access
+      - weka-admin-superkey
+      - --secret
+      - eka-admin-supersecret
+      - --endpoint
+      - http://minio:9000
+      - --region
+      - us-east-1
+      - --meta-bucket
+      - vgw-meta
+      - --use-path-style
+    ports:
+      - "7070:7070"
+      - "7071:7071"
+    volumes:
+      - versitygw-iam:/var/lib/versitygw/iam
+    networks:
+      - s3lab
+
+  versitygw-user-provisioner:
+    image: versity/versitygw:latest
+    container_name: mock-weka-versitygw-user-provisioner
+    depends_on:
+      - versitygw
+    entrypoint: ["/bin/sh", "/scripts/provision-versitygw-users.sh"]
+    environment:
+      VGW_ADMIN_ENDPOINT: http://versitygw:7071
+      VGW_ROOT_ACCESS_KEY: weka-admin-superkey
+      VGW_ROOT_SECRET_KEY: eka-admin-supersecret
+    volumes:
+      - ./scripts:/scripts:ro
+    networks:
+      - s3lab
+    restart: "no"
+
+  versitygw-policy-provisioner:
+    image: amazon/aws-cli:latest
+    container_name: mock-weka-versitygw-policy-provisioner
+    depends_on:
+      versitygw-user-provisioner:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "/scripts/provision-versitygw-policies.sh"]
+    environment:
+      AWS_ACCESS_KEY_ID: weka-admin-superkey
+      AWS_SECRET_ACCESS_KEY: eka-admin-supersecret
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+      VGW_S3_ENDPOINT: http://versitygw:7070
+    volumes:
+      - ./scripts:/scripts:ro
+      - ./policies:/policies:ro
+    networks:
+      - s3lab
+    restart: "no"
+
+  awscli:
+    image: amazon/aws-cli:latest
+    profiles: ["tools"]
+    entrypoint: ["aws"]
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+    volumes:
+      - ./.tmp/aws:/work
+    working_dir: /work
+    networks:
+      - s3lab
+
+volumes:
+  minio-data:
+  versitygw-iam:
+
+networks:
+  s3lab:
+    name: mock-weka-s3lab
+
