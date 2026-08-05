@@ -8,6 +8,18 @@ set -eu
 : "${VGW_ROOT_ACCESS_KEY:=weka-admin-superkey}"
 : "${VGW_ROOT_SECRET_KEY:=weka-admin-supersecret}"
 
+log_step() {
+  echo "▶ ${1}"
+}
+
+log_info() {
+  echo "• ${1}"
+}
+
+log_done() {
+  echo "✓ ${1}"
+}
+
 admin() {
   versitygw admin \
     -a "${VGW_ROOT_ACCESS_KEY}" \
@@ -16,7 +28,7 @@ admin() {
     "$@"
 }
 
-echo "Waiting for VersityGW admin API at ${VGW_ADMIN_ENDPOINT}..."
+log_step "Waiting for VersityGW admin API at ${VGW_ADMIN_ENDPOINT}..."
 until admin list-users >/tmp/versitygw-users.txt 2>/tmp/versitygw-admin-wait.err; do
   sleep 2
 done
@@ -28,11 +40,11 @@ ensure_user() {
   group_id="$4"
 
   if admin list-users | grep -q "${access_key}"; then
-    echo "VersityGW user ${access_key} already exists."
+    log_info "VersityGW user ${access_key} already exists."
     return 0
   fi
 
-  echo "Creating VersityGW user ${access_key}..."
+  log_step "Creating VersityGW user ${access_key}..."
   admin create-user \
     -a "${access_key}" \
     -s "${secret_key}" \
@@ -44,5 +56,6 @@ ensure_user() {
 ensure_user "user-a-key" "user-a-secret" 1001 1001
 ensure_user "user-b-key" "user-b-secret" 1002 1002
 
-echo "Configured VersityGW users:"
+log_step "Configured VersityGW users:"
 admin list-users
+log_done "VersityGW user provisioning complete."

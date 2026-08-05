@@ -11,6 +11,29 @@ USER_B_SECRET_KEY="user-b-secret"
 
 AWS_WORKDIR=".tmp/aws"
 
+log_section() {
+  echo
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "▶ ${1}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
+log_step() {
+  echo "▶ ${1}"
+}
+
+log_pass() {
+  echo "✓ ${1}"
+}
+
+log_deny() {
+  echo "⛔ ${1}"
+}
+
+log_error() {
+  echo "✗ ${1}" >&2
+}
+
 run_compose() {
   # shellcheck disable=SC2086
   ${COMPOSE} "$@"
@@ -30,23 +53,23 @@ aws_as() {
 expect_success() {
   name="$1"
   shift
-  echo "PASS expected: ${name}"
+  log_pass "PASS expected: ${name}"
   "$@"
 }
 
 expect_denied() {
   name="$1"
   shift
-  echo "DENY expected: ${name}"
+  log_deny "DENY expected: ${name}"
   if "$@" >/tmp/mock-weka-deny.out 2>/tmp/mock-weka-deny.err; then
-    echo "ERROR: command unexpectedly succeeded: ${name}" >&2
+    log_error "ERROR: command unexpectedly succeeded: ${name}"
     cat /tmp/mock-weka-deny.out >&2 || true
     return 1
   fi
   cat /tmp/mock-weka-deny.err
 }
 
-echo "Starting and provisioning local S3 lab..."
+log_section "Starting and provisioning local S3 lab..."
 run_compose up -d minio
 run_compose run --rm -T minio-provisioner
 run_compose up -d versitygw
@@ -58,11 +81,11 @@ printf 'hello from user A\n' > "${AWS_WORKDIR}/user-a-small.txt"
 printf 'hello from user B\n' > "${AWS_WORKDIR}/user-b-small.txt"
 
 if [ ! -f "${AWS_WORKDIR}/oversize-11MiB.bin" ]; then
+  log_step "Creating local 11MiB quota test object..."
   dd if=/dev/zero of="${AWS_WORKDIR}/oversize-11MiB.bin" bs=1M count=11
 fi
 
-echo
-echo "Verifying User_A isolation..."
+log_section "Verifying User_A isolation..."
 expect_success "User_A can upload to bucket-user-a" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key smoke/user-a.txt --body user-a-small.txt
@@ -79,8 +102,7 @@ expect_denied "User_A cannot upload to bucket-user-b" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-b --key smoke/user-a-cross.txt --body user-a-small.txt
 
-echo
-echo "Verifying User_B isolation..."
+log_section "Verifying User_B isolation..."
 expect_success "User_B can upload to bucket-user-b" \
   aws_as "${USER_B_ACCESS_KEY}" "${USER_B_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-b --key smoke/user-b.txt --body user-b-small.txt
@@ -97,12 +119,10 @@ expect_denied "User_B cannot upload to bucket-user-a" \
   aws_as "${USER_B_ACCESS_KEY}" "${USER_B_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key smoke/user-b-cross.txt --body user-b-small.txt
 
-echo
-echo "Verifying MinIO backend quota through VersityGW..."
+log_section "Verifying MinIO backend quota through VersityGW..."
 expect_denied "User_A cannot upload an 11MiB object to 10MiB bucket-user-a" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key quota/oversize.bin --body oversize-11MiB.bin
 
 echo
-echo "All verification checks completed."
-
+log_pass "All verification checks completed."
