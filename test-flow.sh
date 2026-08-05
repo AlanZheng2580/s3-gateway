@@ -3,7 +3,10 @@ set -eu
 
 COMPOSE="${COMPOSE:-docker compose}"
 VGW_ENDPOINT="http://versitygw:7070"
+VGW_ADMIN_ENDPOINT="http://versitygw:7071"
 
+VGW_ADMIN_ACCESS_KEY="${VGW_ADMIN_ACCESS_KEY:-versitygw-admin-key}"
+VGW_ADMIN_SECRET_KEY="${VGW_ADMIN_SECRET_KEY:-versitygw-admin-secret}"
 USER_A_ACCESS_KEY="user-a-key"
 USER_A_SECRET_KEY="user-a-secret"
 USER_B_ACCESS_KEY="user-b-key"
@@ -49,6 +52,20 @@ aws_as() {
     -e "AWS_ACCESS_KEY_ID=${access_key}" \
     -e "AWS_SECRET_ACCESS_KEY=${secret_key}" \
     awscli --endpoint-url "${VGW_ENDPOINT}" "$@"
+}
+
+vgw_admin_as() {
+  access_key="$1"
+  secret_key="$2"
+  shift 2
+
+  run_compose run --rm -T \
+    --entrypoint versitygw \
+    versitygw-user-provisioner admin \
+    -a "${access_key}" \
+    -s "${secret_key}" \
+    -er "${VGW_ADMIN_ENDPOINT}" \
+    "$@"
 }
 
 expect_success() {
@@ -167,6 +184,11 @@ run_compose run --rm -T minio-provisioner
 run_compose up -d versitygw
 run_compose run --rm -T versitygw-user-provisioner
 run_compose run --rm -T versitygw-policy-provisioner
+
+log_section "Verifying provisioned VersityGW admin..."
+expect_success "Provisioned VersityGW admin can list gateway users" \
+  vgw_admin_as "${VGW_ADMIN_ACCESS_KEY}" "${VGW_ADMIN_SECRET_KEY}" \
+    list-users
 
 mkdir -p "${AWS_WORKDIR}"
 printf 'hello from user A\n' > "${AWS_WORKDIR}/user-a-small.txt"

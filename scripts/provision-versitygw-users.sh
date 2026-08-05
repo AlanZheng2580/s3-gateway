@@ -7,6 +7,8 @@ set -eu
 : "${VGW_ADMIN_ENDPOINT:=http://versitygw:7071}"
 : "${VGW_ROOT_ACCESS_KEY:=weka-admin-superkey}"
 : "${VGW_ROOT_SECRET_KEY:=weka-admin-supersecret}"
+: "${VGW_ADMIN_ACCESS_KEY:=versitygw-admin-key}"
+: "${VGW_ADMIN_SECRET_KEY:=versitygw-admin-secret}"
 
 log_step() {
   echo "▶ ${1}"
@@ -36,25 +38,33 @@ done
 ensure_user() {
   access_key="$1"
   secret_key="$2"
-  user_id="$3"
-  group_id="$4"
+  role="$3"
+  user_id="$4"
+  group_id="$5"
 
   if admin list-users | grep -q "${access_key}"; then
-    log_info "VersityGW user ${access_key} already exists."
+    log_info "VersityGW user ${access_key} already exists; ensuring ${role} role."
+    admin update-user \
+      -a "${access_key}" \
+      -s "${secret_key}" \
+      -r "${role}" \
+      -ui "${user_id}" \
+      -gi "${group_id}"
     return 0
   fi
 
-  log_step "Creating VersityGW user ${access_key}..."
+  log_step "Creating VersityGW ${role} ${access_key}..."
   admin create-user \
     -a "${access_key}" \
     -s "${secret_key}" \
-    -r user \
+    -r "${role}" \
     -ui "${user_id}" \
     -gi "${group_id}"
 }
 
-ensure_user "user-a-key" "user-a-secret" 1001 1001
-ensure_user "user-b-key" "user-b-secret" 1002 1002
+ensure_user "${VGW_ADMIN_ACCESS_KEY}" "${VGW_ADMIN_SECRET_KEY}" admin 1000 1000
+ensure_user "user-a-key" "user-a-secret" user 1001 1001
+ensure_user "user-b-key" "user-b-secret" user 1002 1002
 
 log_step "Configured VersityGW users:"
 admin list-users

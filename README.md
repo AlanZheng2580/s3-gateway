@@ -36,6 +36,11 @@ VersityGW root/admin credential, used for the gateway Web UI and admin API:
 - Access key: `weka-admin-superkey`
 - Secret key: `weka-admin-supersecret`
 
+Provisioned VersityGW admin user, also allowed to use the gateway Web UI and admin API:
+
+- Access key: `versitygw-admin-key`
+- Secret key: `versitygw-admin-secret`
+
 Gateway users:
 
 | User | Access key | Secret key | Allowed bucket |
@@ -160,11 +165,12 @@ The script:
 
 1. Starts MinIO and VersityGW.
 2. Re-runs all provisioning steps idempotently.
-3. Confirms User_A can read/write only `bucket-user-a`.
-4. Confirms User_B can read/write only `bucket-user-b`.
-5. Confirms User_A can complete a real multipart upload.
-6. Confirms User_A cannot initiate multipart upload to User_B's bucket.
-7. Confirms an 11MiB upload to a 10MiB bucket is rejected.
+3. Confirms the provisioned VersityGW admin user can call the admin API.
+4. Confirms User_A can read/write only `bucket-user-a`.
+5. Confirms User_B can read/write only `bucket-user-b`.
+6. Confirms User_A can complete a real multipart upload.
+7. Confirms User_A cannot initiate multipart upload to User_B's bucket.
+8. Confirms an 11MiB upload to a 10MiB bucket is rejected.
 
 ## Manual S3 examples
 
