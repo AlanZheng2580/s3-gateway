@@ -10,6 +10,30 @@ USER_B_ACCESS_KEY="user-b-key"
 USER_B_SECRET_KEY="user-b-secret"
 
 AWS_WORKDIR=".tmp/aws"
+MULTIPART_OBJECT_SIZE_BYTES="6291456"
+
+log_section() {
+  echo
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "▶ ${1}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+}
+
+log_step() {
+  echo "▶ ${1}"
+}
+
+log_pass() {
+  echo "✓ ${1}"
+}
+
+log_deny() {
+  echo "⛔ ${1}"
+}
+
+log_error() {
+  echo "✗ ${1}" >&2
+}
 
 run_compose() {
   # shellcheck disable=SC2086
@@ -30,23 +54,114 @@ aws_as() {
 expect_success() {
   name="$1"
   shift
-  echo "PASS expected: ${name}"
+  log_pass "PASS expected: ${name}"
   "$@"
 }
 
 expect_denied() {
   name="$1"
   shift
-  echo "DENY expected: ${name}"
+  log_deny "DENY expected: ${name}"
   if "$@" >/tmp/mock-weka-deny.out 2>/tmp/mock-weka-deny.err; then
-    echo "ERROR: command unexpectedly succeeded: ${name}" >&2
+    log_error "ERROR: command unexpectedly succeeded: ${name}"
     cat /tmp/mock-weka-deny.out >&2 || true
     return 1
   fi
   cat /tmp/mock-weka-deny.err
 }
 
-echo "Starting and provisioning local S3 lab..."
+multipart_upload_user_a() {
+  upload_id=""
+
+  # Keep the test idempotent under the default 10MiB quota. Without removing
+  # the previous completed multipart object, replacement uploads may need
+  # temporary headroom for old object + new multipart parts.
+  aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api delete-object \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin >/dev/null || true
+
+  upload_id="$(aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api create-multipart-upload \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin \
+    --query UploadId \
+    --output text)"
+
+  if [ -z "${upload_id}" ] || [ "${upload_id}" = "None" ]; then
+    log_error "Failed to create multipart upload."
+    return 1
+  fi
+
+  etag_1=""
+  etag_2=""
+
+  if ! etag_1="$(aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api upload-part \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin \
+    --part-number 1 \
+    --body multipart-part-1-5MiB.bin \
+    --upload-id "${upload_id}" \
+    --query ETag \
+    --output text)"; then
+    aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+      s3api abort-multipart-upload \
+      --bucket bucket-user-a \
+      --key multipart/user-a-6MiB.bin \
+      --upload-id "${upload_id}" || true
+    return 1
+  fi
+
+  if ! etag_2="$(aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api upload-part \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin \
+    --part-number 2 \
+    --body multipart-part-2-1MiB.bin \
+    --upload-id "${upload_id}" \
+    --query ETag \
+    --output text)"; then
+    aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+      s3api abort-multipart-upload \
+      --bucket bucket-user-a \
+      --key multipart/user-a-6MiB.bin \
+      --upload-id "${upload_id}" || true
+    return 1
+  fi
+
+  printf '{"Parts":[{"ETag":%s,"PartNumber":1},{"ETag":%s,"PartNumber":2}]}\n' \
+    "${etag_1}" \
+    "${etag_2}" > "${AWS_WORKDIR}/multipart-complete-user-a.json"
+
+  if ! aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api complete-multipart-upload \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin \
+    --upload-id "${upload_id}" \
+    --multipart-upload file://multipart-complete-user-a.json; then
+    aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+      s3api abort-multipart-upload \
+      --bucket bucket-user-a \
+      --key multipart/user-a-6MiB.bin \
+      --upload-id "${upload_id}" || true
+    return 1
+  fi
+
+  actual_size="$(aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api head-object \
+    --bucket bucket-user-a \
+    --key multipart/user-a-6MiB.bin \
+    --query ContentLength \
+    --output text)"
+
+  if [ "${actual_size}" != "${MULTIPART_OBJECT_SIZE_BYTES}" ]; then
+    log_error "Multipart object size mismatch: expected ${MULTIPART_OBJECT_SIZE_BYTES}, got ${actual_size}."
+    return 1
+  fi
+}
+
+log_section "Starting and provisioning local S3 lab..."
 run_compose up -d minio
 run_compose run --rm -T minio-provisioner
 run_compose up -d versitygw
@@ -58,11 +173,21 @@ printf 'hello from user A\n' > "${AWS_WORKDIR}/user-a-small.txt"
 printf 'hello from user B\n' > "${AWS_WORKDIR}/user-b-small.txt"
 
 if [ ! -f "${AWS_WORKDIR}/oversize-11MiB.bin" ]; then
+  log_step "Creating local 11MiB quota test object..."
   dd if=/dev/zero of="${AWS_WORKDIR}/oversize-11MiB.bin" bs=1M count=11
 fi
 
-echo
-echo "Verifying User_A isolation..."
+if [ ! -f "${AWS_WORKDIR}/multipart-part-1-5MiB.bin" ]; then
+  log_step "Creating local 5MiB multipart test part..."
+  dd if=/dev/zero of="${AWS_WORKDIR}/multipart-part-1-5MiB.bin" bs=1M count=5
+fi
+
+if [ ! -f "${AWS_WORKDIR}/multipart-part-2-1MiB.bin" ]; then
+  log_step "Creating local 1MiB multipart test part..."
+  dd if=/dev/zero of="${AWS_WORKDIR}/multipart-part-2-1MiB.bin" bs=1M count=1
+fi
+
+log_section "Verifying User_A isolation..."
 expect_success "User_A can upload to bucket-user-a" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key smoke/user-a.txt --body user-a-small.txt
@@ -70,6 +195,9 @@ expect_success "User_A can upload to bucket-user-a" \
 expect_success "User_A can list bucket-user-a" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api list-objects-v2 --bucket bucket-user-a
+
+expect_success "User_A can complete a multipart upload to bucket-user-a" \
+  multipart_upload_user_a
 
 expect_denied "User_A cannot list bucket-user-b" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
@@ -79,8 +207,11 @@ expect_denied "User_A cannot upload to bucket-user-b" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-b --key smoke/user-a-cross.txt --body user-a-small.txt
 
-echo
-echo "Verifying User_B isolation..."
+expect_denied "User_A cannot initiate multipart upload to bucket-user-b" \
+  aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
+    s3api create-multipart-upload --bucket bucket-user-b --key multipart/user-a-cross.bin
+
+log_section "Verifying User_B isolation..."
 expect_success "User_B can upload to bucket-user-b" \
   aws_as "${USER_B_ACCESS_KEY}" "${USER_B_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-b --key smoke/user-b.txt --body user-b-small.txt
@@ -97,12 +228,10 @@ expect_denied "User_B cannot upload to bucket-user-a" \
   aws_as "${USER_B_ACCESS_KEY}" "${USER_B_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key smoke/user-b-cross.txt --body user-b-small.txt
 
-echo
-echo "Verifying MinIO backend quota through VersityGW..."
+log_section "Verifying MinIO backend quota through VersityGW..."
 expect_denied "User_A cannot upload an 11MiB object to 10MiB bucket-user-a" \
   aws_as "${USER_A_ACCESS_KEY}" "${USER_A_SECRET_KEY}" \
     s3api put-object --bucket bucket-user-a --key quota/oversize.bin --body oversize-11MiB.bin
 
 echo
-echo "All verification checks completed."
-
+log_pass "All verification checks completed."

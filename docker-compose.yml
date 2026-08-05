@@ -1,12 +1,16 @@
 services:
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
     container_name: mock-weka-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: weka-admin-superkey
       MINIO_ROOT_PASSWORD: weka-admin-supersecret
       MINIO_REGION_NAME: us-east-1
+      # Large-model uploads commonly fail midway. These settings keep abandoned
+      # multipart parts from consuming backend disk indefinitely.
+      MINIO_API_STALE_UPLOADS_EXPIRY: ${MINIO_API_STALE_UPLOADS_EXPIRY:-24h}
+      MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL: ${MINIO_API_STALE_UPLOADS_CLEANUP_INTERVAL:-1h}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -16,7 +20,7 @@ services:
       - s3lab
 
   minio-provisioner:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
     container_name: mock-weka-minio-provisioner
     depends_on:
       - minio
@@ -27,6 +31,10 @@ services:
       MINIO_ROOT_PASSWORD: weka-admin-supersecret
       MINIO_VGW_ADMIN_USER: versitygw-minio-admin
       MINIO_VGW_ADMIN_PASSWORD: versitygw-minio-admin-secret
+      # Keep the default small so ./test-flow.sh can verify quota behavior
+      # quickly. For real LLM model uploads, override with 500GiB, 1TiB, etc.
+      USER_BUCKET_QUOTA_SIZE: ${USER_BUCKET_QUOTA_SIZE:-10MiB}
+      USER_BUCKET_VERSIONING: ${USER_BUCKET_VERSIONING:-suspend}
     volumes:
       - ./scripts:/scripts:ro
     networks:
@@ -34,7 +42,7 @@ services:
     restart: "no"
 
   versitygw:
-    image: versity/versitygw:latest
+    image: versity/versitygw:v1.7.0
     container_name: mock-weka-versitygw
     depends_on:
       minio-provisioner:
@@ -57,6 +65,14 @@ services:
       - /health
       - --iam-dir
       - /var/lib/versitygw/iam
+      # Explicit large-object/multipart-related gateway limits.
+      - --mp-max-parts
+      - "10000"
+      - --keep-alive
+      - --max-connections
+      - "1000"
+      - --max-requests
+      - "500"
       - --access
       - weka-admin-superkey
       - --secret
@@ -83,7 +99,7 @@ services:
       - s3lab
 
   versitygw-user-provisioner:
-    image: versity/versitygw:latest
+    image: versity/versitygw:v1.7.0
     container_name: mock-weka-versitygw-user-provisioner
     depends_on:
       - versitygw
@@ -99,7 +115,7 @@ services:
     restart: "no"
 
   versitygw-policy-provisioner:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:2.36.16
     container_name: mock-weka-versitygw-policy-provisioner
     depends_on:
       versitygw-user-provisioner:
@@ -119,7 +135,7 @@ services:
     restart: "no"
 
   awscli:
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:2.36.16
     profiles: ["tools"]
     entrypoint: ["aws"]
     environment:
