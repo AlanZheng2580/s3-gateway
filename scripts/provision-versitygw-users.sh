@@ -6,7 +6,7 @@ set -eu
 
 : "${VGW_ADMIN_ENDPOINT:=http://versitygw:7071}"
 : "${VGW_ROOT_ACCESS_KEY:=weka-admin-superkey}"
-: "${VGW_ROOT_SECRET_KEY:=eka-admin-supersecret}"
+: "${VGW_ROOT_SECRET_KEY:=weka-admin-supersecret}"
 
 admin() {
   versitygw admin \
@@ -46,4 +46,3 @@ ensure_user "user-b-key" "user-b-secret" 1002 1002
 
 echo "Configured VersityGW users:"
 admin list-users
-

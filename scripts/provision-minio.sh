@@ -6,7 +6,7 @@ set -eu
 
 : "${MINIO_ENDPOINT:=http://minio:9000}"
 : "${MINIO_ROOT_USER:=weka-admin-superkey}"
-: "${MINIO_ROOT_PASSWORD:=eka-admin-supersecret}"
+: "${MINIO_ROOT_PASSWORD:=weka-admin-supersecret}"
 
 echo "Waiting for MinIO at ${MINIO_ENDPOINT}..."
 until mc alias set mock-weka "${MINIO_ENDPOINT}" "${MINIO_ROOT_USER}" "${MINIO_ROOT_PASSWORD}" >/dev/null 2>&1; do
@@ -30,4 +30,3 @@ mc quota info mock-weka/bucket-user-a || true
 mc quota info mock-weka/bucket-user-b || true
 
 echo "MinIO provisioning complete."
-

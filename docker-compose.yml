@@ -5,7 +5,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: weka-admin-superkey
-      MINIO_ROOT_PASSWORD: eka-admin-supersecret
+      MINIO_ROOT_PASSWORD: weka-admin-supersecret
       MINIO_REGION_NAME: us-east-1
     ports:
       - "9000:9000"
@@ -24,7 +24,7 @@ services:
     environment:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: weka-admin-superkey
-      MINIO_ROOT_PASSWORD: eka-admin-supersecret
+      MINIO_ROOT_PASSWORD: weka-admin-supersecret
     volumes:
       - ./scripts:/scripts:ro
     networks:
@@ -58,12 +58,12 @@ services:
       - --access
       - weka-admin-superkey
       - --secret
-      - eka-admin-supersecret
+      - weka-admin-supersecret
       - s3
       - --access
       - weka-admin-superkey
       - --secret
-      - eka-admin-supersecret
+      - weka-admin-supersecret
       - --endpoint
       - http://minio:9000
       - --region
@@ -89,7 +89,7 @@ services:
     environment:
       VGW_ADMIN_ENDPOINT: http://versitygw:7071
       VGW_ROOT_ACCESS_KEY: weka-admin-superkey
-      VGW_ROOT_SECRET_KEY: eka-admin-supersecret
+      VGW_ROOT_SECRET_KEY: weka-admin-supersecret
     volumes:
       - ./scripts:/scripts:ro
     networks:
@@ -105,7 +105,7 @@ services:
     entrypoint: ["/bin/sh", "/scripts/provision-versitygw-policies.sh"]
     environment:
       AWS_ACCESS_KEY_ID: weka-admin-superkey
-      AWS_SECRET_ACCESS_KEY: eka-admin-supersecret
+      AWS_SECRET_ACCESS_KEY: weka-admin-supersecret
       AWS_DEFAULT_REGION: us-east-1
       AWS_EC2_METADATA_DISABLED: "true"
       VGW_S3_ENDPOINT: http://versitygw:7070

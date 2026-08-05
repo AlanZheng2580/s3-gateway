@@ -11,7 +11,7 @@ This repository runs a local S3 development lab:
 Backend MinIO and VersityGW root/admin credential:
 
 - Access key: `weka-admin-superkey`
-- Secret key: `eka-admin-supersecret`
+- Secret key: `weka-admin-supersecret`
 
 Gateway users:
 
