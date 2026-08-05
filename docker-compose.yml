@@ -25,6 +25,8 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ROOT_USER: weka-admin-superkey
       MINIO_ROOT_PASSWORD: weka-admin-supersecret
+      MINIO_VGW_ADMIN_USER: versitygw-minio-admin
+      MINIO_VGW_ADMIN_PASSWORD: versitygw-minio-admin-secret
     volumes:
       - ./scripts:/scripts:ro
     networks:
@@ -61,9 +63,9 @@ services:
       - weka-admin-supersecret
       - s3
       - --access
-      - weka-admin-superkey
+      - versitygw-minio-admin
       - --secret
-      - weka-admin-supersecret
+      - versitygw-minio-admin-secret
       - --endpoint
       - http://minio:9000
       - --region

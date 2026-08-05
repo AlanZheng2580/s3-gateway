@@ -8,7 +8,17 @@ This repository runs a local S3 development lab:
 
 ## Credentials and buckets
 
-Backend MinIO and VersityGW root/admin credential:
+MinIO root credential, used only for backend provisioning:
+
+- Access key: `weka-admin-superkey`
+- Secret key: `weka-admin-supersecret`
+
+Dedicated MinIO admin credential used by VersityGW to connect to the backend:
+
+- Access key: `versitygw-minio-admin`
+- Secret key: `versitygw-minio-admin-secret`
+
+VersityGW root/admin credential, used for the gateway Web UI and admin API:
 
 - Access key: `weka-admin-superkey`
 - Secret key: `weka-admin-supersecret`
@@ -27,6 +37,8 @@ Buckets:
 - `vgw-meta` for VersityGW S3-proxy metadata, including bucket policy metadata
 
 `bucket-user-a` and `bucket-user-b` are configured with a 10MiB MinIO bucket quota for easy failure testing.
+
+VersityGW does not use the MinIO root credential for backend access. The MinIO provisioner creates `versitygw-minio-admin`, attaches MinIO's built-in `consoleAdmin` policy to it, and the VersityGW S3 backend is configured with that dedicated credential.
 
 ## Important VersityGW policy note
 
