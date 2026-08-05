@@ -2,16 +2,6 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "DenyUserBOnBucketUserA",
-      "Effect": "Deny",
-      "Principal": "user-b-key",
-      "Action": "s3:*",
-      "Resource": [
-        "arn:aws:s3:::bucket-user-a",
-        "arn:aws:s3:::bucket-user-a/*"
-      ]
-    },
-    {
       "Sid": "AllowUserAListAndBucketRead",
       "Effect": "Allow",
       "Principal": "user-a-key",
@@ -30,6 +20,7 @@
         "s3:GetObject",
         "s3:PutObject",
         "s3:DeleteObject",
+        "s3:DeleteObjectVersion",
         "s3:AbortMultipartUpload",
         "s3:ListMultipartUploadParts"
       ],
@@ -37,4 +28,3 @@
     }
   ]
 }
-
