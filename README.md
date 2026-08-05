@@ -49,6 +49,7 @@ Useful endpoints:
 
 - VersityGW S3 endpoint: `http://localhost:7070`
 - VersityGW admin endpoint: `http://localhost:7071`
+- VersityGW Web UI: `http://localhost:8080`
 - MinIO S3 endpoint: `http://localhost:9000`
 - MinIO console: `http://localhost:9001`
 
