@@ -36,6 +36,11 @@ VersityGW root/admin credential, used for the gateway Web UI and admin API:
 - Access key: `weka-admin-superkey`
 - Secret key: `weka-admin-supersecret`
 
+Provisioned VersityGW admin user, also allowed to use the gateway Web UI and admin API:
+
+- Access key: `versitygw-admin-key`
+- Secret key: `versitygw-admin-secret`
+
 Gateway users:
 
 | User | Access key | Secret key | Allowed bucket |
@@ -142,6 +147,21 @@ Prerequisite: Docker with the Compose v2 plugin (`docker compose`).
 docker compose up -d
 ```
 
+The repository also provides a `Makefile` for common operations:
+
+```sh
+make help
+make validate
+make up
+make status
+make test
+make logs
+make down
+```
+
+`make down` stops the containers but preserves the named volumes. `make reset`
+deletes all mock bucket data, IAM state, and named volumes.
+
 Useful endpoints:
 
 - VersityGW S3 endpoint: `http://localhost:7070`
@@ -149,6 +169,62 @@ Useful endpoints:
 - VersityGW Web UI: `http://localhost:8080`
 - MinIO S3 endpoint: `http://localhost:9000`
 - MinIO console: `http://localhost:9001`
+
+The VersityGW admin port `7071` is an authenticated API endpoint and does not
+provide a browser homepage. Use the Web UI on port `8080`; it calls the S3 API
+on port `7070` and the admin API on port `7071`.
+
+### Access the Web UI through SSH port forwarding
+
+The browser running on the client computer must be able to reach all three
+VersityGW ports. Forwarding only port `8080` loads the page, but login and
+gateway operations fail because the browser cannot reach ports `7070` and
+`7071`.
+
+From the client computer, such as a MacBook, run:
+
+```sh
+ssh \
+  -L 8080:localhost:8080 \
+  -L 7070:localhost:7070 \
+  -L 7071:localhost:7071 \
+  alan@vivo
+```
+
+Then open `http://localhost:8080` on the client. Verify the tunnel with:
+
+```sh
+curl http://localhost:7070/health
+```
+
+The expected response is `OK`.
+
+### Web UI object deletion
+
+The Web UI deletes objects with the S3 Multi-Object Delete API
+(`POST /bucket?delete`). VersityGW v1.7.0 performs an initial bucket-resource
+authorization check for this operation before checking each object. For
+compatibility, each user policy grants the existing object actions on both the
+user's exact bucket ARN and its object ARN pattern:
+
+```json
+"Resource": [
+  "arn:aws:s3:::bucket-user-a",
+  "arn:aws:s3:::bucket-user-a/*"
+]
+```
+
+The policies still use exact bucket names: User_A has no grant for
+`bucket-user-b`, and User_B has no grant for `bucket-user-a`. The acceptance
+test verifies that each user can use Multi-Object Delete in their own bucket,
+that cross-bucket delete attempts are denied, and that the target objects still
+exist after those denied attempts.
+
+After editing a policy, reapply both policies with:
+
+```sh
+make apply-policies
+```
 
 ## Run verification
 
@@ -160,11 +236,12 @@ The script:
 
 1. Starts MinIO and VersityGW.
 2. Re-runs all provisioning steps idempotently.
-3. Confirms User_A can read/write only `bucket-user-a`.
-4. Confirms User_B can read/write only `bucket-user-b`.
-5. Confirms User_A can complete a real multipart upload.
-6. Confirms User_A cannot initiate multipart upload to User_B's bucket.
-7. Confirms an 11MiB upload to a 10MiB bucket is rejected.
+3. Confirms the provisioned VersityGW admin user can call the admin API.
+4. Confirms User_A can read/write only `bucket-user-a`.
+5. Confirms User_B can read/write only `bucket-user-b`.
+6. Confirms User_A can complete a real multipart upload.
+7. Confirms User_A cannot initiate multipart upload to User_B's bucket.
+8. Confirms an 11MiB upload to a 10MiB bucket is rejected.
 
 ## Manual S3 examples
 

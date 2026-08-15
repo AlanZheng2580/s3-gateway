@@ -108,6 +108,8 @@ services:
       VGW_ADMIN_ENDPOINT: http://versitygw:7071
       VGW_ROOT_ACCESS_KEY: weka-admin-superkey
       VGW_ROOT_SECRET_KEY: weka-admin-supersecret
+      VGW_ADMIN_ACCESS_KEY: ${VGW_ADMIN_ACCESS_KEY:-versitygw-admin-key}
+      VGW_ADMIN_SECRET_KEY: ${VGW_ADMIN_SECRET_KEY:-versitygw-admin-secret}
     volumes:
       - ./scripts:/scripts:ro
     networks:
