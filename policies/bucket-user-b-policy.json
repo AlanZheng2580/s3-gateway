@@ -24,7 +24,10 @@
         "s3:AbortMultipartUpload",
         "s3:ListMultipartUploadParts"
       ],
-      "Resource": "arn:aws:s3:::bucket-user-b/*"
+      "Resource": [
+        "arn:aws:s3:::bucket-user-b",
+        "arn:aws:s3:::bucket-user-b/*"
+      ]
     }
   ]
 }
