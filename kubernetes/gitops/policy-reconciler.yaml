@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: versitygw-policy-reconciler
+  annotations:
+    argocd.argoproj.io/sync-wave: "40"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reconciler
+              image: amazon/aws-cli:2.36.16
+              command: ["/bin/sh", "/config/scripts/reconcile-versitygw-policies.sh"]
+              env:
+                - name: VGW_S3_ENDPOINT
+                  value: http://versitygw:7070
+                - name: AWS_DEFAULT_REGION
+                  value: us-east-1
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: accessKey
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: secretAccessKey
+              volumeMounts:
+                - name: policies
+                  mountPath: /config/policies
+                  readOnly: true
+                - name: scripts
+                  mountPath: /config/scripts
+                  readOnly: true
+          volumes:
+            - name: policies
+              configMap:
+                name: versitygw-policies
+            - name: scripts
+              configMap:
+                name: versitygw-reconcile-scripts
+                defaultMode: 0555
+

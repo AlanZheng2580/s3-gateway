@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versitygw-user-a
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  VGW_USER_ACCESS_KEY: user-a-key
+  VGW_USER_ROLE: user
+  VGW_USER_ID: "1001"
+  VGW_GROUP_ID: "1001"
+  VGW_PROJECT_ID: "0"
+  VGW_USER_STATE: present
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: versitygw-user-b
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  VGW_USER_ACCESS_KEY: user-b-key
+  VGW_USER_ROLE: user
+  VGW_USER_ID: "1002"
+  VGW_GROUP_ID: "1002"
+  VGW_PROJECT_ID: "0"
+  VGW_USER_STATE: present
+

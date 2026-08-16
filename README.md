@@ -226,6 +226,43 @@ After editing a policy, reapply both policies with:
 make apply-policies
 ```
 
+## Kubernetes GitOps with Vault and Argo CD
+
+The repository includes a Kustomize-based reconciliation layer for a future
+Kubernetes deployment. It separates desired state by sensitivity:
+
+- bucket policy JSON and non-secret user metadata are stored in Git and rendered
+  as ConfigMaps;
+- admin and user secret access keys are read from Vault through `VaultSecret`;
+- idempotent CronJobs reconcile users through the VersityGW admin API and bucket
+  policies through the S3 API every five minutes.
+
+Render the manifests locally with:
+
+```sh
+make k8s-validate
+make k8s-render
+```
+
+The initial implementation assumes the Ricoberger Vault Secrets Operator CRD:
+
+```yaml
+apiVersion: ricoberger.de/v1alpha1
+kind: VaultSecret
+```
+
+Verify this API against the company cluster before deployment. The required
+Vault paths, user lifecycle, manual reconciliation commands, and Argo CD
+assumptions are documented in
+[kubernetes/gitops/README.md](kubernetes/gitops/README.md).
+
+User deletion is deliberately explicit: set `VGW_USER_STATE: absent` in Git.
+Removing a manifest does not implicitly delete the corresponding VersityGW
+account. This prevents accidental deletion when a file or ConfigMap is renamed.
+
+Vault secret rotation is picked up by the Vault Secrets Operator and then by the
+next CronJob run. Reconciliation scripts never print secret values.
+
 ## Run verification
 
 ```sh

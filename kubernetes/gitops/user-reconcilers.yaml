@@ -1,0 +1,106 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: versitygw-user-a-reconciler
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reconciler
+              image: versity/versitygw:v1.7.0
+              command: ["/bin/sh", "/config/scripts/reconcile-versitygw-user.sh"]
+              envFrom:
+                - configMapRef:
+                    name: versitygw-user-a
+              env:
+                - name: VGW_ADMIN_ENDPOINT
+                  value: http://versitygw:7071
+                - name: VGW_ADMIN_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: accessKey
+                - name: VGW_ADMIN_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: secretAccessKey
+                - name: VGW_USER_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-user-a-credentials
+                      key: secretAccessKey
+                      optional: true
+              volumeMounts:
+                - name: scripts
+                  mountPath: /config/scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: versitygw-reconcile-scripts
+                defaultMode: 0555
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: versitygw-user-b-reconciler
+  annotations:
+    argocd.argoproj.io/sync-wave: "30"
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reconciler
+              image: versity/versitygw:v1.7.0
+              command: ["/bin/sh", "/config/scripts/reconcile-versitygw-user.sh"]
+              envFrom:
+                - configMapRef:
+                    name: versitygw-user-b
+              env:
+                - name: VGW_ADMIN_ENDPOINT
+                  value: http://versitygw:7071
+                - name: VGW_ADMIN_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: accessKey
+                - name: VGW_ADMIN_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-admin-credentials
+                      key: secretAccessKey
+                - name: VGW_USER_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: versitygw-user-b-credentials
+                      key: secretAccessKey
+                      optional: true
+              volumeMounts:
+                - name: scripts
+                  mountPath: /config/scripts
+                  readOnly: true
+          volumes:
+            - name: scripts
+              configMap:
+                name: versitygw-reconcile-scripts
+                defaultMode: 0555
+

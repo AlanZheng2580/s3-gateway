@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: mock-weka-s3
+
+resources:
+  - kubernetes/gitops/namespace.yaml
+  - kubernetes/gitops/vault-secrets.yaml
+  - kubernetes/gitops/user-metadata.yaml
+  - kubernetes/gitops/user-reconcilers.yaml
+  - kubernetes/gitops/policy-reconciler.yaml
+
+configMapGenerator:
+  - name: versitygw-policies
+    files:
+      - policies/bucket-user-a-policy.json
+      - policies/bucket-user-b-policy.json
+  - name: versitygw-reconcile-scripts
+    files:
+      - scripts/reconcile-versitygw-user.sh
+      - scripts/reconcile-versitygw-policies.sh
+
+generatorOptions:
+  disableNameSuffixHash: false
+
